@@ -29,7 +29,14 @@ function getContextInfo() {
       resolution: doc.resolution,
       colorMode: String(doc.mode),
       layerCount: doc.layers.length,
-      hasSelection: doc.selection.bounds ? true : false
+      hasSelection: (function () {
+        try {
+          return !!(doc.selection && doc.selection.bounds);
+        } catch (e) {
+          // ExtendScript throws "No such element" when there is no active selection
+          return false;
+        }
+      })()
     };
     
     if (doc.activeLayer) {
