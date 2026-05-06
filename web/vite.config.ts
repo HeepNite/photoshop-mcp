@@ -18,6 +18,12 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:5174',
         changeOrigin: true,
+        configure: (proxy) => {
+          // Rewrite Origin so Hono's loopback-origin guard accepts proxied requests in dev.
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('origin', 'http://127.0.0.1:5174');
+          });
+        },
       },
     },
   },

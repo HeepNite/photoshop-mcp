@@ -5,9 +5,15 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ProviderAdapter } from './providers/registry.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-// dist/ui/agent.js -> dist/index.js (the existing Photoshop MCP STDIO server entry).
-const PHOTOSHOP_MCP_ENTRY = resolve(__dirname, '..', 'index.js');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// In production (`dist/ui/agent.js`) we point at the compiled `dist/index.js`.
+// In development (`tsx watch src/ui/cli.ts`) the source `.ts` is loaded directly,
+// so we resolve the TS entry and spawn it through Node's tsx loader.
+const IS_DEV_SOURCE = __filename.endsWith('.ts');
+const PHOTOSHOP_MCP_ENTRY = IS_DEV_SOURCE
+  ? resolve(__dirname, '..', 'index.ts')
+  : resolve(__dirname, '..', 'index.js');
 
 export interface ToolCallPersist {
   id: string;
@@ -58,10 +64,13 @@ export async function* runChat(opts: RunChatOptions): AsyncGenerator<RunChatStre
   const buffer: AssistantBuffer = { text: '', toolCalls: [] };
 
   try {
+    const spawnArgs = IS_DEV_SOURCE
+      ? ['--import', 'tsx', PHOTOSHOP_MCP_ENTRY]
+      : [PHOTOSHOP_MCP_ENTRY];
     mcp = await createMCPClient({
       transport: new Experimental_StdioMCPTransport({
         command: process.execPath,
-        args: [PHOTOSHOP_MCP_ENTRY],
+        args: spawnArgs,
         env: { ...sanitizedEnv(), LOG_LEVEL: process.env.LOG_LEVEL ?? '2' },
       }),
     });
