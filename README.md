@@ -209,6 +209,49 @@ Redo 1 step to bring back one operation.
 - ✅ **Auto-Rasterize**: Automatically converts layers when needed for filters
 - ✅ **Context Tracking**: Returns document/layer state after each operation for AI context awareness
 
+## Standalone UI Mode (no IDE required)
+
+Don't want to wire this into Claude Desktop or Cursor? The same package ships an
+optional, fully local web UI that talks to Claude on your behalf and drives the
+Photoshop MCP server underneath. It's a drop-in alternative — the original MCP
+server (`photoshop-mcp`) keeps working exactly as before.
+
+```bash
+npx @alisaitteke/photoshop-mcp-ui
+```
+
+What happens:
+
+1. A local server starts on `127.0.0.1` (random free port) and your default
+   browser opens the chat UI automatically.
+2. On first launch you paste your **Anthropic API key** (`sk-ant-...`); it is
+   stored at `~/.photoshop-mcp/config.json` with `chmod 600` and never leaves
+   your machine.
+3. Type natural-language prompts; the UI streams Claude's reply, runs Photoshop
+   tool calls in real time, and renders each tool call as an inspectable card
+   (input + result).
+
+CLI flags:
+
+```
+photoshop-mcp-ui [--port 5174] [--host 127.0.0.1] [--no-open]
+```
+
+Tech stack: Vue 3 + Tailwind v4 + [shadcn-vue](https://www.shadcn-vue.com/) on the
+frontend; [Hono](https://hono.dev/) + the official
+[Claude Agent SDK](https://docs.anthropic.com/en/api/agent-sdk/typescript) on the
+backend. Claude's agent loop talks to the existing Photoshop MCP server over
+STDIO — same code path as the IDE integration.
+
+Notes:
+
+- Authentication uses **your own Anthropic API key** (per Anthropic policy,
+  Claude Pro/Max OAuth is not available to third-party apps).
+- The agent is restricted to Photoshop MCP tools only — built-in shell, file,
+  and web tools are disabled.
+
+---
+
 ## Installation
 
 ### Using NPX (Recommended)

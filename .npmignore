@@ -3,6 +3,19 @@ src/
 tsconfig.json
 eslint.config.js
 
+# UI frontend sources (only web/dist is shipped via "files" allowlist)
+web/src/
+web/node_modules/
+web/index.html
+web/vite.config.ts
+web/tsconfig.json
+web/tsconfig.node.json
+web/package.json
+web/package-lock.json
+web/postcss.config.js
+web/tailwind.config.js
+web/.gitignore
+
 # Development
 .taskmaster/
 examples/
