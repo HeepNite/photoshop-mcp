@@ -14,7 +14,7 @@ Don't want to wire this into Claude Desktop or Cursor? The same package ships a
 fully local web UI that lets you chat with an AI model and drive Photoshop
 through this MCP server underneath.
 
-![Standalone UI Screenshot](./images/standalone-ui-screenshot.png)
+![Standalone UI Screenshot](./images/frame_generic_light.png)
 
 ```bash
 npx -p @alisaitteke/photoshop-mcp photoshop-mcp-ui
