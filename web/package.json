@@ -20,6 +20,7 @@
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
+    "@lobehub/icons-static-svg": "^1.88.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.1",
