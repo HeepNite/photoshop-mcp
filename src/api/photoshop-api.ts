@@ -109,13 +109,52 @@ class ExtendScriptPhotoshopAPI implements PhotoshopAPI {
   try { __originalRulerUnits = app.preferences.rulerUnits; } catch (e) {}
   try { __originalTypeUnits = app.preferences.typeUnits; } catch (e) {}
 
+  // Pre-resolve app.activeDocument when at least one document is open.
+  // After operations that change document state (open, place, close), the
+  // bridge between AppleScript and Photoshop can return a stale
+  // "No such element" the first time activeDocument is touched. Touching
+  // it here with a brief retry warms the reference before the user script
+  // runs, so subsequent activeDocument access in the user script is stable.
+  if (app.documents.length > 0) {
+    var __docTries = 3;
+    while (__docTries-- > 0) {
+      try {
+        var __doc = app.activeDocument;
+        // Force the underlying lazy reference to resolve.
+        var __probe = __doc.name;
+        break;
+      } catch (__docErr) {
+        if (__docTries <= 0) break;
+        $.sleep(50);
+      }
+    }
+  }
+
+  function __runUserScript() {
+    return (function() {
+      ${script}
+    })();
+  }
+
   try {
     try { app.preferences.rulerUnits = Units.PIXELS; } catch (e) {}
     try { app.preferences.typeUnits = TypeUnits.POINTS; } catch (e) {}
 
-    var result = (function() {
-      ${script}
-    })();
+    var result;
+    try {
+      result = __runUserScript();
+    } catch (__firstErr) {
+      // Retry once on the specific stale-reference error that appears
+      // after document state changes. A short sleep lets Photoshop settle.
+      var __msg = (__firstErr && __firstErr.message) ? __firstErr.message : String(__firstErr);
+      if (__msg.indexOf('No such element') !== -1) {
+        $.sleep(100);
+        result = __runUserScript();
+      } else {
+        throw __firstErr;
+      }
+    }
+
     if (typeof result === 'object' && result !== null) {
       return result.toSource ? result.toSource() : String(result);
     }

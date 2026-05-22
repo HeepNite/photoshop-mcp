@@ -68,7 +68,10 @@ export class MacOSExecutor implements ScriptExecutor {
   }
 
   private async executeScript(script: string): Promise<unknown> {
-    // For macOS, we'll use AppleScript to execute JavaScript in Photoshop
+    // For macOS, we'll use AppleScript to execute JavaScript in Photoshop.
+    // The script is written to a temp .jsx file and evaluated by Photoshop
+    // through `$.evalFile`. The return value of `$.evalFile` becomes the
+    // value of `do javascript`, which AppleScript prints to stdout for us.
     const tempScriptPath = join(tmpdir(), `photoshop-script-${Date.now()}.jsx`);
     const tempAppleScriptPath = join(tmpdir(), `photoshop-applescript-${Date.now()}.scpt`);
 
@@ -80,11 +83,32 @@ export class MacOSExecutor implements ScriptExecutor {
       await writeFile(tempAppleScriptPath, appleScript, 'utf8');
 
       try {
-        // Execute AppleScript via osascript
-        const { stdout, stderr } = await execAsync(`osascript "${tempAppleScriptPath}"`);
+        // Execute AppleScript via osascript. Try once, and if the result
+        // is the stale-reference "No such element" error, wait briefly
+        // and retry — this is a known issue right after operations that
+        // change document state (open, place, close).
+        let stdout = '';
+        let stderr = '';
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const result = await execAsync(`osascript "${tempAppleScriptPath}"`);
+          stdout = result.stdout;
+          stderr = result.stderr;
 
-        if (stderr) {
-          this.logger.warn('Script execution warning:', stderr);
+          if (stderr) {
+            this.logger.warn('Script execution warning:', stderr);
+          }
+
+          const trimmed = stdout.trim();
+          if (
+            attempt === 0 &&
+            trimmed.startsWith('ERROR:') &&
+            trimmed.indexOf('No such element') !== -1
+          ) {
+            this.logger.debug('Stale activeDocument detected, retrying after 150ms');
+            await new Promise((r) => setTimeout(r, 150));
+            continue;
+          }
+          break;
         }
 
         // Parse result
@@ -105,11 +129,17 @@ export class MacOSExecutor implements ScriptExecutor {
   private createAppleScriptWrapper(jsxPath: string): string {
     // Use POSIX file path for AppleScript
     const posixPath = jsxPath.replace(/\\/g, '/');
-    
+
+    // The value of the `tell` block is the value of its last statement, so
+    // `set theResult to do javascript ...` followed by `return theResult`
+    // guarantees osascript prints the script's return value to stdout.
+    // Without the explicit `return`, some macOS / Photoshop combinations
+    // print an empty string for non-trivial return values.
     return `tell application "${this.appName}"
 \tactivate
-\tset jsxFile to POSIX file "${posixPath}"
-\tdo javascript "$.evalFile(decodeURI('${encodeURI(posixPath)}'))"
+\tdelay 0.05
+\tset theResult to do javascript "$.evalFile(decodeURI('${encodeURI(posixPath)}'))"
+\treturn theResult
 end tell`;
   }
 

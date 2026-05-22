@@ -22,6 +22,15 @@ function getContextInfo() {
   
   if (context.hasDocument) {
     var doc = app.activeDocument;
+
+    // Check for active selection BEFORE building the object literal.
+    // ExtendScript has a quirk where exceptions thrown inside an IIFE
+    // that is used as a property value inside an object literal are not
+    // reliably caught by the surrounding try/catch. Hoisting the check
+    // into a plain variable avoids that problem.
+    var __hasSel = false;
+    try { var __selBounds = doc.selection.bounds; __hasSel = true; } catch (e) { __hasSel = false; }
+
     context.document = {
       name: doc.name,
       width: doc.width.as('px'),
@@ -29,14 +38,7 @@ function getContextInfo() {
       resolution: doc.resolution,
       colorMode: String(doc.mode),
       layerCount: doc.layers.length,
-      hasSelection: (function () {
-        try {
-          return !!(doc.selection && doc.selection.bounds);
-        } catch (e) {
-          // ExtendScript throws "No such element" when there is no active selection
-          return false;
-        }
-      })()
+      hasSelection: __hasSel
     };
     
     if (doc.activeLayer) {
@@ -1212,10 +1214,28 @@ export const ExtendScriptSnippets = {
   `,
 
   /**
-   * Execute custom JavaScript code
+   * Execute custom JavaScript code.
+   *
+   * The user code is evaluated through ExtendScript's eval(), which returns
+   * the value of the last evaluated expression. This lets bare expressions
+   * (e.g. "app.activeDocument.name") be captured as the result without
+   * forcing callers to write an explicit "return". Callers that already
+   * include a "return" statement still work because eval() of a block that
+   * contains a top-level return throws; we fall back to running the code as
+   * a function body in that case.
    */
   executeCustomScript: (code: string) => `
-    ${code}
+    var __userCode = ${JSON.stringify(code)};
+    try {
+      return eval(__userCode);
+    } catch (__evalErr) {
+      // Top-level "return" inside eval is a SyntaxError. Re-run the code as
+      // a function body so users who already wrote "return ..." still work.
+      if (__evalErr instanceof SyntaxError) {
+        return (new Function(__userCode))();
+      }
+      throw __evalErr;
+    }
   `,
 
   /**
